@@ -53,9 +53,16 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
         private BufferedImage image;
         private javax.swing.JButton btnTakePicture = null;
         private javax.swing.JButton btnSavePicture = null;
+        //private javax.swing.JButton btnStopPlayCamera = null;
+        private boolean cameraOpen=true;
+        private boolean frameCreated=false;
         //private static final String PATH = "/home/jeremias/Escritorio/img/";
         
         private Builder builder;
+        private static WebcamViewer instance;
+     
+    private WebcamViewer() {
+    }
 
     private WebcamViewer(Builder aThis) {
         this.builder = aThis;
@@ -74,9 +81,10 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
 
 		Webcam.addDiscoveryListener(this);
 
+                frameCreated = true;
 		setTitle(builder.title);
              
-		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		setLayout(new BorderLayout());
 
 		addWindowListener(this);
@@ -111,12 +119,32 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
                 
                 btnSavePicture.addActionListener(new java.awt.event.ActionListener() {
                     public void actionPerformed(java.awt.event.ActionEvent evt) {
+                        
                         btnSaveActionPerformed(evt);
                     }
                 });
                 
+                /*btnStopPlayCamera = new javax.swing.JButton("Left");
+                btnStopPlayCamera.setText("Cerrar Camara");
+                
+                
+                btnStopPlayCamera.addActionListener(new java.awt.event.ActionListener() {
+                    public void actionPerformed(java.awt.event.ActionEvent evt) {
+                        if(cameraOpen){
+                            cameraOpen=false;
+                            webcam.close();
+                            btnStopPlayCamera.setText("Abrir Camara");
+                        }else{
+                            cameraOpen=true;
+                            openCamera();
+                            btnStopPlayCamera.setText("Cerrar Camara");
+                        }
+                    }
+                });*/
+                
                 JPanel btnPnl = new JPanel(new FlowLayout(FlowLayout.CENTER));
                 btnPnl.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+                //btnPnl.add(btnStopPlayCamera);
                 btnPnl.add(btnTakePicture);
                 btnPnl.add(btnSavePicture);
 
@@ -171,8 +199,9 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
                     
                     if(builder.closeAfterTakePicture){
                         webcam.close();
+                        //btnStopPlayCamera.setText("Abrir Camara");
                         setVisible(false);
-                        dispose(); 
+                        //dispose(); 
                     }
                     
                 } catch (IOException ex) {
@@ -193,7 +222,13 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
         }
 
 	public void display(){
-            SwingUtilities.invokeLater(this);
+            if(frameCreated){
+                instance.setVisible(true);
+                instance.openCamera();
+            }else{
+                SwingUtilities.invokeLater(instance);
+            }
+            
         }
         
         public static class Builder {
@@ -202,6 +237,7 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
             private String imageFormat = "PNG";
             private boolean closeAfterTakePicture = false;
             private String title = "Java Webcam"; 
+            
             
             public Builder setCloseAfterTakePicture(boolean closeAfterTakePicture){
                 this.closeAfterTakePicture = closeAfterTakePicture;
@@ -227,8 +263,10 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
             
             
             public WebcamViewer build() {
-                
-                return new WebcamViewer(this);
+                if(instance==null){
+                    instance = new WebcamViewer(this);
+                }
+                return instance;
             }
         }
         
@@ -336,6 +374,39 @@ public class WebcamViewer extends JFrame implements Runnable, WebcamListener, Wi
 			}
 		}
 	}
+        
+        public void openCamera(){
+            panel.stop();
+
+            remove(panel);
+
+            webcam.removeWebcamListener(this);
+            webcam.close();
+
+            //webcam = (Webcam) e.getItem();
+            //webcam.setViewSize(WebcamResolution.VGA.getSize());
+            webcam.addWebcamListener(this);
+
+            System.out.println("selected " + webcam.getName());
+
+            panel = new WebcamPanel(webcam, false);
+            panel.setFPSDisplayed(true);
+
+            add(panel, BorderLayout.CENTER);
+            pack();
+
+            Thread t = new Thread() {
+
+                    @Override
+                    public void run() {
+                            panel.start();
+                    }
+            };
+            t.setName("example-stoper");
+            t.setDaemon(true);
+            t.setUncaughtExceptionHandler(this);
+            t.start();
+        }
 
 	@Override
 	public void webcamFound(WebcamDiscoveryEvent event) {
